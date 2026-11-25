@@ -31,6 +31,8 @@ build="$work/build"
 cmake -S "$srcdir/llvm" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_ARCHITECTURES=arm64 \
+  -DCMAKE_C_FLAGS=-mcpu=apple-m1 \
+  -DCMAKE_CXX_FLAGS=-mcpu=apple-m1 \
   -DCMAKE_INSTALL_PREFIX="$prefix" \
   -DLLVM_TARGETS_TO_BUILD="AArch64;WebAssembly" \
   -DLLVM_ENABLE_RTTI=ON \
@@ -49,6 +51,7 @@ cmake -S "$srcdir/llvm" -B "$build" -G Ninja \
   -DLLVM_ENABLE_FFI=OFF \
   -DLLVM_ENABLE_TERMINFO=OFF
 
+grep -E "^CMAKE_(C|CXX)_FLAGS(_RELEASE)?:" "$build/CMakeCache.txt"
 start=$(date +%s)
 cmake --build "$build" -j "$jobs"
 echo "build seconds: $(( $(date +%s) - start ))"
