@@ -3,7 +3,7 @@
 #   scripts/verify-macos.sh <prefix>
 set -euo pipefail
 
-prefix=${1:?usage: verify-macos.sh <prefix>}
+prefix=$(cd "${1:?usage: verify-macos.sh <prefix>}" && pwd)
 lib="$prefix/lib"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
