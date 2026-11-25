@@ -1,0 +1,43 @@
+name: build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["llvm.env", "scripts/**", ".github/workflows/build.yml"]
+
+jobs:
+  macos-arm64:
+    runs-on: macos-14
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tools
+        run: |
+          brew install ninja zstd || true
+          cmake --version
+          ninja --version
+          xcodebuild -version
+      - name: Build
+        run: |
+          start=$(date +%s)
+          scripts/build-macos.sh
+          echo "total seconds: $(( $(date +%s) - start ))"
+      - name: Verify
+        run: scripts/verify-macos.sh out/prefix
+      - name: Summary
+        run: |
+          {
+            echo "### macos-arm64"
+            echo '```'
+            cat out/prefix/BUILD_INFO.txt
+            du -sh out/prefix out/*.tar.zst
+            cat out/*.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llvm-macos-arm64
+          path: |
+            out/*.tar.zst
+            out/*.sha256
+          retention-days: 7
