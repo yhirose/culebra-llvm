@@ -21,7 +21,34 @@ assertions off, and publishes the result as release assets.
 
 ## Status
 
-Work in progress. Nothing is published yet.
+Published: release
+[`llvm-23.1.5-r1`](https://github.com/yhirose/culebra-llvm/releases/tag/llvm-23.1.5-r1),
+for macOS arm64 only (Apple Silicon, built for apple-m1 and later; there is no
+Intel Mac build).
+
+- LLVM 23.1.5, targets AArch64 and WebAssembly, RTTI on, assertions off, no
+  external libraries.
+- About 45 MB as `.tar.zst`, 221 MB unpacked.
+- Built by this repository's CI on `macos-15` in about 30 minutes, from the
+  tag's commit.
+
+Linux and Windows: not published yet.
+
+### Making a release
+
+Push a tag named `llvm-<LLVM version>-r<revision>`. The workflow builds,
+verifies, and attaches the archive and its `.sha256` to the release. The
+verification checks that `LiveRange::find` is at most 35 instructions (the
+libraries are optimized) and that the `CallbackVH` typeinfo exists (RTTI is on).
+
+### How culebra uses it
+
+culebra's `misc/prebuilt_llvm.env` pins a release tag, asset name and SHA256
+per platform, and its `justfile` passes the unpacked directory as `-DLLVM_DIR`.
+
+One measured effect: for a large program, culebra's `--jit` translation took
+about 98 s with Homebrew's llvm static libraries (compiled at `-O0`) and about
+61 s with these (3 runs each, same machine, load not controlled).
 
 ## License
 
