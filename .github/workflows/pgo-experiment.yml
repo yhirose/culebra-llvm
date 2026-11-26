@@ -1,0 +1,39 @@
+name: pgo-experiment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pgo-experiment]
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: yhirose/culebra
+          ref: 543613b43f2fd3140c7d11f0baedac42c1cc1cac
+          submodules: recursive
+          path: culebra
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++-14 libblas-dev libasound2-dev \
+            zlib1g-dev libssl-dev lsb-release software-properties-common gnupg wget
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 22
+          sudo apt-get install -y llvm-22-dev
+          lscpu | grep -E 'Model name|^CPU\(s\)'
+      - name: Build and measure
+        env:
+          CULEBRA_CANVAS_WINDOW_DEFAULT: "OFF"
+        run: |
+          set -o pipefail
+          experiment/pgo-linux.sh culebra 2>&1 | tee result.txt
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; cat result.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
