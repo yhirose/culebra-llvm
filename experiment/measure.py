@@ -1,6 +1,7 @@
-"""CPU seconds of `culebra --jit` per variant, variants interleaved per round.
+"""CPU seconds of `culebra --jit` per variant, variants interleaved per round,
+and each driver's stripped size.
 
-usage: measure.py <culebra checkout> <out dir> <test name>...
+usage: measure.py <culebra checkout> <dir of drivers> <test name>...
 """
 import os
 import statistics
@@ -8,14 +9,17 @@ import subprocess
 import sys
 
 culebra, out, names = sys.argv[1], sys.argv[2], sys.argv[3:]
-variants = ["apt22", "own", "pgo"]
+variants = ["apt22", "own-O3", "own-O2", "pgo-O3", "pgo-O2"]
+n = len(variants)
+for v in variants:
+    os.chmod(f"{out}/{v}", 0o755)
 programs = ["examples/hello.cul"] + [f"tests/{n}.cul" for n in names]
-rounds = 7
+rounds = 10
 
 
 def run(variant, program):
     p = subprocess.Popen(
-        [f"{out}/culebra-{variant}/culebra", "--jit", program],
+        [f"{out}/{variant}", "--jit", program],
         cwd=culebra, stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
@@ -27,7 +31,7 @@ times = {(v, p): [] for v in variants for p in programs}
 codes = {(v, p): set() for v in variants for p in programs}
 for r in range(rounds):
     for p in programs:
-        for v in variants[r % 3:] + variants[:r % 3]:
+        for v in variants[r % n:] + variants[:r % n]:
             t, c = run(v, p)
             times[v, p].append(t)
             codes[v, p].add(c)
@@ -44,3 +48,7 @@ for p in programs:
 print("== total of medians")
 for v in variants:
     print(f"{v:6} {total[v]:7.3f}  x{total[v] / total['apt22']:.3f}")
+print("== stripped driver, bytes")
+for v in variants:
+    subprocess.run(["strip", "-o", f"{out}/{v}.stripped", f"{out}/{v}"], check=True)
+    print(f"{v:6} {os.path.getsize(f'{out}/{v}.stripped')}")

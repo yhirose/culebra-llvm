@@ -6,9 +6,13 @@ on:
     branches: [pgo-experiment]
 
 jobs:
-  linux-x64:
+  build:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        level: [O3, O2]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -26,14 +30,41 @@ jobs:
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 22
           sudo apt-get install -y llvm-22-dev
-          lscpu | grep -E 'Model name|^CPU\(s\)'
-      - name: Build and measure
+      - name: Build
         env:
           CULEBRA_CANVAS_WINDOW_DEFAULT: "OFF"
         run: |
           set -o pipefail
-          experiment/pgo-linux.sh culebra 2>&1 | tee result.txt
-      - name: Summary
-        if: always()
+          experiment/pgo-linux.sh culebra ${{ matrix.level }} 2>&1 | tee result.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drivers-${{ matrix.level }}
+          path: out/bin/
+          retention-days: 7
+
+  measure:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: yhirose/culebra
+          ref: 543613b43f2fd3140c7d11f0baedac42c1cc1cac
+          submodules: recursive
+          path: culebra
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: drivers-*
+          merge-multiple: true
+          path: bin
+      - name: Measure
         run: |
+          set -o pipefail
+          sudo apt-get update
+          sudo apt-get install -y libblas-dev
+          lscpu | grep -E 'Model name|^CPU\(s\)'
+          python3 experiment/measure.py culebra "$PWD/bin" test_core test_kauai \
+            test_runtime_errors test_value_inline test_typed_fields test_class | tee result.txt
           { echo '```'; cat result.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

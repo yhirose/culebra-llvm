@@ -1,13 +1,15 @@
 #!/bin/bash
 # Experiment: what does PGO of LLVM buy culebra's --jit on Linux x86-64?
-#   experiment/pgo-linux.sh <culebra checkout>
+#   experiment/pgo-linux.sh <culebra checkout> <O2|O3>
+# Leaves out/bin/{own,pgo}-<level> (and apt22 with O3) for experiment/measure.py.
 # Variants: apt22 (what culebra's Linux builds link today), own (the pinned
 # version built here), pgo (own + GCC PGO trained by culebra --jit).
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 . "$root/llvm.env"
-culebra=$(cd "${1:?usage: pgo-linux.sh <culebra checkout>}" && pwd)
+culebra=$(cd "${1:?usage: pgo-linux.sh <culebra checkout> <O2|O3>}" && pwd)
+level=${2:?usage: pgo-linux.sh <culebra checkout> <O2|O3>}
 jobs=$(nproc)
 work="$root/src"
 out="$root/out"
@@ -30,6 +32,8 @@ build_llvm() {
   start=$(date +%s)
   cmake -S "$srcdir/llvm" -B "$build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_FLAGS_RELEASE="-$level -DNDEBUG" \
+    -DCMAKE_CXX_FLAGS_RELEASE="-$level -DNDEBUG" \
     -DCMAKE_C_FLAGS="$flags" -DCMAKE_CXX_FLAGS="$flags" \
     -DCMAKE_EXE_LINKER_FLAGS="$flags" \
     -DCMAKE_INSTALL_PREFIX="$prefix" \
@@ -61,7 +65,9 @@ build_culebra() {
   echo "culebra $name: $(( $(date +%s) - start )) s"
 }
 
-build_culebra apt22 /usr/lib/llvm-22/lib/cmake/llvm
+if [ "$level" = O3 ]; then
+  build_culebra apt22 /usr/lib/llvm-22/lib/cmake/llvm
+fi
 
 build_llvm "$work/build-own" "$out/llvm-own"
 build_culebra own "$out/llvm-own/lib/cmake/llvm"
@@ -93,13 +99,8 @@ rm -rf "$work/build-pgo"
 build_llvm "$work/build-pgo" "$out/llvm-pgo" "$use"
 build_culebra pgo "$out/llvm-pgo/lib/cmake/llvm"
 
-python3 "$root/experiment/measure.py" "$culebra" "$out" $measured
-
-echo "== size (stripped driver) and shared libraries"
-for v in apt22 own pgo; do
-  cp "$out/culebra-$v/culebra" "$out/stripped-$v"
-  strip "$out/stripped-$v"
-  echo "$v: $(stat -c %s "$out/stripped-$v") bytes"
-  ldd "$out/stripped-$v" | awk '{print "    "$1}' | sort
-done
+mkdir -p "$out/bin"
+cp "$out/culebra-own/culebra" "$out/bin/own-$level"
+cp "$out/culebra-pgo/culebra" "$out/bin/pgo-$level"
+if [ "$level" = O3 ]; then cp "$out/culebra-apt22/culebra" "$out/bin/apt22"; fi
 du -sh "$out"/llvm-own "$out"/llvm-pgo
